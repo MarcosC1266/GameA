@@ -13,6 +13,7 @@
 #define GAME_BPP 32
 #define GAME_DRAWING_AREA_MS (GAME_RES_WIDTH * GAME_RES_HEIGHT * (GAME_BPP / 8))
 #define CALCULATE_AVG_FPS_X_FRAMES 100
+#define TARGET_MICROSECONDS_PER_FRAME 16667
 
 typedef struct GAMEBITMAP {
     BITMAPINFO bitMapInfo;
@@ -28,12 +29,10 @@ typedef struct PIXEL32 {
 
 typedef struct PERFDATA {
     uint64_t totalFramesRendered;
-    uint32_t avgFrame;
-    uint32_t maxFrame;
-    LARGE_INTEGER frequency;
-    LARGE_INTEGER startTime;
-    LARGE_INTEGER endTime;
-    LARGE_INTEGER elapsedTime;
+    float avgFrame;
+    float maxFrame;
+    uint64_t frequency;
+    uint64_t elapsedTime;
     MONITORINFO monitorInfo;
     int32_t monitorWidth ;
     int32_t monitorHeight;

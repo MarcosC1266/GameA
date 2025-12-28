@@ -16,6 +16,14 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
     UNREFERENCED_PARAMETER(lpCmdLine);
     UNREFERENCED_PARAMETER(nShowCmd);
 
+    MSG msg;
+    int64_t frequency;
+    int64_t startTime;
+    int64_t endTime;
+    int64_t elapsedTime;
+    int64_t elapsedTimeAcc = 0;
+    int64_t targetTimeAcc = 0;
+
     if (GameHealthCheck() == TRUE) {
         MessageBox(NULL, "Game is already running", "Error", MB_ICONEXCLAMATION | MB_OK);
         goto Exit;
@@ -26,7 +34,7 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
     }
 
     ShowWindow(gHwnd, TRUE);
-    QueryPerformanceFrequency(&gPerformanceData.frequency);
+    QueryPerformanceFrequency((LARGE_INTEGER*)&frequency);
 
     gBackBuffer.bitMapInfo.bmiHeader.biSize = sizeof(gBackBuffer.bitMapInfo.bmiHeader);
     gBackBuffer.bitMapInfo.bmiHeader.biWidth= GAME_RES_WIDTH;
@@ -44,31 +52,51 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
 
     memset(gBackBuffer.memory, 0x7f, GAME_DRAWING_AREA_MS);
 
-
-    MSG msg;
     gGameRunning = TRUE;
 
     while (gGameRunning) {
-        QueryPerformanceCounter(&gPerformanceData.startTime);
+
+        QueryPerformanceCounter((LARGE_INTEGER*)&startTime);
         while (PeekMessage(&msg, gHwnd, 0, 0, PM_REMOVE)) {
             DispatchMessage(&msg);
         }
         PlayerInput();
         Render();
 
-        QueryPerformanceCounter(&gPerformanceData.endTime);
-        gPerformanceData.elapsedTime.QuadPart = gPerformanceData.endTime.QuadPart - gPerformanceData.startTime.QuadPart;
-        gPerformanceData.elapsedTime.QuadPart *= 1000000;
-        gPerformanceData.elapsedTime.QuadPart /= gPerformanceData.frequency.QuadPart;
-
-        Sleep(1);
-
+        QueryPerformanceCounter((LARGE_INTEGER*)&endTime);
+        elapsedTime = endTime - startTime;
+        elapsedTime *= 1000000;
+        elapsedTime /= frequency;
         gPerformanceData.totalFramesRendered ++;
+        elapsedTimeAcc += elapsedTime;
+
+        while (elapsedTime <= TARGET_MICROSECONDS_PER_FRAME) {
+            Sleep(0);
+            elapsedTime = endTime - startTime;
+            elapsedTime *= 1000000;
+            elapsedTime /= frequency;
+            QueryPerformanceCounter((LARGE_INTEGER*)&endTime);
+        }
+        targetTimeAcc += elapsedTime;
+
 
         if (gPerformanceData.totalFramesRendered % CALCULATE_AVG_FPS_X_FRAMES == 0) {
-            char str[64] = {0};
-            _snprintf_s(str, _countof(str),_TRUNCATE, "Elapsed microseconds: %lli\n", gPerformanceData.elapsedTime.QuadPart);
+            const int64_t maxMicroseconds = elapsedTimeAcc/CALCULATE_AVG_FPS_X_FRAMES;
+            const int64_t avgMicroseconds = targetTimeAcc / CALCULATE_AVG_FPS_X_FRAMES;
+            gPerformanceData.maxFrame = 1.0f/((elapsedTimeAcc/60) * 0.000001f);
+            gPerformanceData.avgFrame = 1.0f/((targetTimeAcc/60) * 0.000001f);
+
+
+            char str[128] = {0};
+            _snprintf_s(
+                str,
+                _countof(str),_TRUNCATE,
+                "Frametime count - Avg Milliseconds/frame:%.02f\tAvg FPS:%.01f\tMax FPS:%.01f\n",
+                (maxMicroseconds * 0.001f), gPerformanceData.avgFrame, gPerformanceData.maxFrame
+                );
             OutputDebugStringA(str);
+            elapsedTimeAcc  = 0;
+            targetTimeAcc = 0;
         }
     }
 
