@@ -15,6 +15,9 @@
 #define CALCULATE_AVG_FPS_X_FRAMES 100
 #define TARGET_MICROSECONDS_PER_FRAME 8333
 
+typedef LONG(NTAPI* _NtQueryTimerResolution) (OUT PULONG MinimunResolution, OUT PULONG MaximunResolution, OUT PULONG CurrentResolution);
+_NtQueryTimerResolution NtQueryTimerResolution;
+
 typedef struct GAMEBITMAP {
     BITMAPINFO bitMapInfo;
     void* memory;
@@ -33,11 +36,14 @@ typedef struct PERFDATA {
     float maxFrame;
     uint64_t frequency;
     uint64_t elapsedTime;
-    boolean debugMode;
+    BOOL debugMode;
     float msFrame;
     MONITORINFO monitorInfo;
     int32_t monitorWidth ;
     int32_t monitorHeight;
+    LONG minTimerResolution;
+    LONG maxTimerResolution;
+    LONG currentTimerResolution;
 } PERFDATA;
 
 LRESULT CALLBACK MainWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);

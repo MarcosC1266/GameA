@@ -23,6 +23,19 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
     int64_t elapsedTime;
     int64_t elapsedTimeAcc = 0;
     int64_t targetTimeAcc = 0;
+    HMODULE ntDllModuel;
+
+    if ((ntDllModuel = GetModuleHandleA("ntdll.dll")) == NULL) {
+        MessageBoxA(NULL, "Couldn't load ntdll.dll", "Error!", MB_ICONERROR | MB_OK);
+        goto Exit;
+    }
+
+    if ((NtQueryTimerResolution = (_NtQueryTimerResolution) GetProcAddress(ntDllModuel, "NtQueryTimerResolution")) == NULL) {
+        MessageBoxA(NULL, "Couldn't find NtQueryTimerResolution in ntdll.dll", "Error!", MB_ICONERROR | MB_OK);
+        goto Exit;
+    }
+
+    NtQueryTimerResolution(&gPerformanceData.minTimerResolution, &gPerformanceData.maxTimerResolution, &gPerformanceData.currentTimerResolution);
 
     if (GameHealthCheck() == TRUE) {
         MessageBox(NULL, "Game is already running", "Error", MB_ICONEXCLAMATION | MB_OK);
@@ -35,6 +48,7 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
 
     ShowWindow(gHwnd, TRUE);
     QueryPerformanceFrequency((LARGE_INTEGER*)&frequency);
+    gPerformanceData.debugMode = TRUE;
 
     gBackBuffer.bitMapInfo.bmiHeader.biSize = sizeof(gBackBuffer.bitMapInfo.bmiHeader);
     gBackBuffer.bitMapInfo.bmiHeader.biWidth= GAME_RES_WIDTH;
@@ -71,11 +85,14 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
         elapsedTimeAcc += elapsedTime;
 
         while (elapsedTime <= TARGET_MICROSECONDS_PER_FRAME) {
-            Sleep(1);
             elapsedTime = endTime - startTime;
             elapsedTime *= 1000000;
             elapsedTime /= frequency;
             QueryPerformanceCounter((LARGE_INTEGER*)&endTime);
+
+            if (elapsedTime <= (TARGET_MICROSECONDS_PER_FRAME - gPerformanceData.currentTimerResolution)) {
+                Sleep(1);
+            }
         }
         targetTimeAcc += elapsedTime;
 
@@ -263,7 +280,16 @@ void PrintDebugInfo(HDC deviceContext) {
     sprintf_s(debugTextBuff, _countof(debugTextBuff), "Frame time:              %.01f ms", gPerformanceData.msFrame);
     TextOutA(deviceContext, 0,26, debugTextBuff, (int)strlen(debugTextBuff));
 
-    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Monitor Resolution:      %dx%d", gPerformanceData.monitorWidth, gPerformanceData.monitorHeight);
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Min. Timer Resolution:   %.01f ms", gPerformanceData.minTimerResolution / 10000.0f);
     TextOutA(deviceContext, 0,39, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Max. Timer Resolution:   %.01f ms", gPerformanceData.maxTimerResolution / 10000.0f);
+    TextOutA(deviceContext, 0,52, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Cur. Timer Resolution:   %.01f ms", gPerformanceData.currentTimerResolution / 10000.0f);
+    TextOutA(deviceContext, 0,65, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Monitor Resolution:      %dx%d", gPerformanceData.monitorWidth, gPerformanceData.monitorHeight);
+    TextOutA(deviceContext, 0,78, debugTextBuff, (int)strlen(debugTextBuff));
 }
 
