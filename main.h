@@ -8,12 +8,12 @@
 #include <stdint.h>
 
 #define GAME_NAME "Game A"
-#define GAME_RES_WIDTH 640
-#define GAME_RES_HEIGHT 360
+#define GAME_RES_WIDTH 384
+#define GAME_RES_HEIGHT 216
 #define GAME_BPP 32
 #define GAME_DRAWING_AREA_MS (GAME_RES_WIDTH * GAME_RES_HEIGHT * (GAME_BPP / 8))
 #define CALCULATE_AVG_FPS_X_FRAMES 100
-#define TARGET_MICROSECONDS_PER_FRAME 16667
+#define TARGET_MICROSECONDS_PER_FRAME 8333
 
 typedef struct GAMEBITMAP {
     BITMAPINFO bitMapInfo;
@@ -33,6 +33,8 @@ typedef struct PERFDATA {
     float maxFrame;
     uint64_t frequency;
     uint64_t elapsedTime;
+    boolean debugMode;
+    float msFrame;
     MONITORINFO monitorInfo;
     int32_t monitorWidth ;
     int32_t monitorHeight;
@@ -43,4 +45,5 @@ DWORD CreateMainWindow(HINSTANCE Instance);
 BOOL GameHealthCheck(void);
 void PlayerInput(void);
 void Render(void);
+void PrintDebugInfo(HDC deviceContext);
 #endif //GAMEA_MAIN_H

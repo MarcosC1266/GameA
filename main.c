@@ -71,7 +71,7 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
         elapsedTimeAcc += elapsedTime;
 
         while (elapsedTime <= TARGET_MICROSECONDS_PER_FRAME) {
-            Sleep(0);
+            Sleep(1);
             elapsedTime = endTime - startTime;
             elapsedTime *= 1000000;
             elapsedTime /= frequency;
@@ -81,20 +81,10 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
 
 
         if (gPerformanceData.totalFramesRendered % CALCULATE_AVG_FPS_X_FRAMES == 0) {
-            const int64_t maxMicroseconds = elapsedTimeAcc/CALCULATE_AVG_FPS_X_FRAMES;
-            const int64_t avgMicroseconds = targetTimeAcc / CALCULATE_AVG_FPS_X_FRAMES;
-            gPerformanceData.maxFrame = 1.0f/((elapsedTimeAcc/60) * 0.000001f);
-            gPerformanceData.avgFrame = 1.0f/((targetTimeAcc/60) * 0.000001f);
+            gPerformanceData.msFrame = (elapsedTimeAcc/CALCULATE_AVG_FPS_X_FRAMES) * 0.001f;
+            gPerformanceData.maxFrame = 1.0f/((elapsedTimeAcc/CALCULATE_AVG_FPS_X_FRAMES) * 0.000001f);
+            gPerformanceData.avgFrame = 1.0f/((targetTimeAcc/CALCULATE_AVG_FPS_X_FRAMES) * 0.000001f);
 
-
-            char str[128] = {0};
-            _snprintf_s(
-                str,
-                _countof(str),_TRUNCATE,
-                "Frametime count - Avg Milliseconds/frame:%.02f\tAvg FPS:%.01f\tMax FPS:%.01f\n",
-                (maxMicroseconds * 0.001f), gPerformanceData.avgFrame, gPerformanceData.maxFrame
-                );
-            OutputDebugStringA(str);
             elapsedTimeAcc  = 0;
             targetTimeAcc = 0;
         }
@@ -150,7 +140,7 @@ DWORD CreateMainWindow(HINSTANCE Instance) {
       0,
       wc.lpszClassName,
       GAME_NAME,
-      WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+       WS_VISIBLE,
       CW_USEDEFAULT, CW_USEDEFAULT, GAME_RES_WIDTH, GAME_RES_HEIGHT,
       NULL, NULL, Instance, NULL
     );
@@ -172,7 +162,7 @@ DWORD CreateMainWindow(HINSTANCE Instance) {
     gPerformanceData.monitorWidth = gPerformanceData.monitorInfo.rcMonitor.right - gPerformanceData.monitorInfo.rcMonitor.left;
     gPerformanceData.monitorHeight = gPerformanceData.monitorInfo.rcMonitor.bottom - gPerformanceData.monitorInfo.rcMonitor.top;
 
-    const int windowStyleResult = SetWindowLong(gHwnd, GWL_STYLE, (WS_OVERLAPPEDWINDOW | WS_VISIBLE) & ~WS_OVERLAPPEDWINDOW);
+    const int windowStyleResult = SetWindowLong(gHwnd, GWL_STYLE,  WS_VISIBLE);
 
     if (windowStyleResult == 0) {
         result = GetLastError();
@@ -201,10 +191,19 @@ BOOL GameHealthCheck() {
 }
 
 void PlayerInput() {
-    SHORT EscapePressed = GetAsyncKeyState(VK_ESCAPE);
-    if (EscapePressed) {
+    const int16_t escapePressed = GetAsyncKeyState(VK_ESCAPE);
+    const int16_t debugMode= GetAsyncKeyState(VK_F3);
+    static int16_t hDebugMode;
+
+    if (escapePressed) {
         SendMessage(gHwnd, WM_CLOSE, 0, 0);
     }
+
+    if (debugMode && !hDebugMode) {
+        gPerformanceData.debugMode = !gPerformanceData.debugMode;
+    }
+
+    hDebugMode = debugMode;
 }
 
 void Render() {
@@ -220,8 +219,17 @@ void Render() {
         memcpy_s((PIXEL32*)gBackBuffer.memory + x,sizeof(PIXEL32), &pixel, sizeof(PIXEL32));
     }
 
-    HDC DeviceContext = GetDC(gHwnd);
+    int32_t screenX =25;
+    int32_t screenY =25;
+    int32_t startingPixel = ((GAME_RES_WIDTH * GAME_RES_HEIGHT) - GAME_RES_WIDTH) - (GAME_RES_WIDTH * screenY) + screenX;
 
+    for (int32_t y = 0; y < 16; y++) {
+        for (int32_t x = 0; x < 16; x++) {
+            memset((PIXEL32*)gBackBuffer.memory + (uintptr_t)startingPixel + x - ((uintptr_t)GAME_RES_WIDTH * y), 0xff,sizeof(PIXEL32));
+        }
+    }
+
+    HDC DeviceContext = GetDC(gHwnd);
 
     StretchDIBits(
         DeviceContext,
@@ -233,6 +241,29 @@ void Render() {
         DIB_RGB_COLORS, SRCCOPY
         );
 
+    if (gPerformanceData.debugMode) {
+        PrintDebugInfo(DeviceContext);
+    }
+
+
     ReleaseDC(gHwnd, DeviceContext);
+}
+
+void PrintDebugInfo(HDC deviceContext) {
+    SelectObject(deviceContext, (HFONT)GetStockObject(ANSI_FIXED_FONT));
+
+    char debugTextBuff[64] = {0};
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "FPS Max:                 %.01f", gPerformanceData.maxFrame);
+    TextOutA(deviceContext, 0,0, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "FPS Avg:                 %.01f", gPerformanceData.avgFrame);
+    TextOutA(deviceContext, 0,13, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Frame time:              %.01f ms", gPerformanceData.msFrame);
+    TextOutA(deviceContext, 0,26, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Monitor Resolution:      %dx%d", gPerformanceData.monitorWidth, gPerformanceData.monitorHeight);
+    TextOutA(deviceContext, 0,39, debugTextBuff, (int)strlen(debugTextBuff));
 }
 
