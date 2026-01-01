@@ -1,6 +1,6 @@
 #include <windows.h>
 #include "main.h"
-
+#include <emmintrin.h>
 #include <stdio.h>
 //
 // Created by MJVA_ on 24/12/2025.
@@ -10,6 +10,7 @@ BOOL gGameRunning;
 HWND gHwnd;
 GAMEBITMAP gBackBuffer;
 PERFDATA gPerformanceData;
+PLAYER gPlayer;
 
 int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nShowCmd) {
     UNREFERENCED_PARAMETER(hPrevInstance);
@@ -67,6 +68,8 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
     memset(gBackBuffer.memory, 0x7f, GAME_DRAWING_AREA_MS);
 
     gGameRunning = TRUE;
+    gPlayer.posX = 25;
+    gPlayer.posY = 25;
 
     while (gGameRunning) {
 
@@ -90,7 +93,7 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
             elapsedTime /= frequency;
             QueryPerformanceCounter((LARGE_INTEGER*)&endTime);
 
-            if (elapsedTime <= (TARGET_MICROSECONDS_PER_FRAME - gPerformanceData.currentTimerResolution)) {
+            if (elapsedTime <= (TARGET_MICROSECONDS_PER_FRAME - (gPerformanceData.currentTimerResolution))) {
                 Sleep(1);
             }
         }
@@ -211,6 +214,24 @@ void PlayerInput() {
     const int16_t escapePressed = GetAsyncKeyState(VK_ESCAPE);
     const int16_t debugMode= GetAsyncKeyState(VK_F3);
     static int16_t hDebugMode;
+    const int16_t leftPressed = GetAsyncKeyState(VK_LEFT);
+    const int16_t rightPressed = GetAsyncKeyState(VK_RIGHT);
+    const int16_t upPressed = GetAsyncKeyState(VK_UP);
+    const int16_t downPressed = GetAsyncKeyState(VK_DOWN);
+
+    if (leftPressed && gPlayer.posX > 0) {
+        gPlayer.posX--;
+    }
+    if (rightPressed && gPlayer.posX < GAME_RES_WIDTH -16) {
+        gPlayer.posX++;
+    }
+
+    if (upPressed && gPlayer.posY > 0) {
+        gPlayer.posY--;
+    }
+    if (downPressed && gPlayer.posY < GAME_RES_HEIGHT - 16) {
+        gPlayer.posY++;
+    }
 
     if (escapePressed) {
         SendMessage(gHwnd, WM_CLOSE, 0, 0);
@@ -224,21 +245,18 @@ void PlayerInput() {
 }
 
 void Render() {
+    __m128i pixelLoad = _mm_setr_epi8(
+        0xff, 0x99, 0x00, 0xff,
+        0xff, 0x99, 0x00, 0xff,
+        0xff, 0x99, 0x00, 0xff,
+        0xff, 0x99, 0x00, 0xff
+        );
 
-    PIXEL32 pixel = {0};
+    ClearScreen(pixelLoad);
 
-    pixel.blue = 0xff;
-    pixel.green = 0x99;
-    pixel.red = 0;
-    pixel.alpha = 0xff;
-
-    for (int x = 0; x < GAME_DRAWING_AREA_MS / 4; x++) {
-        memcpy_s((PIXEL32*)gBackBuffer.memory + x,sizeof(PIXEL32), &pixel, sizeof(PIXEL32));
-    }
-
-    int32_t screenX =25;
-    int32_t screenY =25;
-    int32_t startingPixel = ((GAME_RES_WIDTH * GAME_RES_HEIGHT) - GAME_RES_WIDTH) - (GAME_RES_WIDTH * screenY) + screenX;
+    int32_t screenX =gPlayer.posX;
+    int32_t screenY =gPlayer.posY;
+    int32_t startingPixel = ((GAME_RES_WIDTH *  GAME_RES_HEIGHT) - GAME_RES_WIDTH) - (GAME_RES_WIDTH * screenY) + screenX;
 
     for (int32_t y = 0; y < 16; y++) {
         for (int32_t x = 0; x < 16; x++) {
@@ -264,6 +282,15 @@ void Render() {
 
 
     ReleaseDC(gHwnd, DeviceContext);
+}
+
+void ClearScreen(__m128i color) {
+    __m128i* buffer = (__m128i*)gBackBuffer.memory;
+    int totalPixels = GAME_RES_WIDTH * GAME_RES_HEIGHT;
+
+    for (int x = 0; x < totalPixels / 4; x++) {
+        _mm_store_si128(buffer + x, color);
+    }
 }
 
 void PrintDebugInfo(HDC deviceContext) {

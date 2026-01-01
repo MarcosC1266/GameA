@@ -6,10 +6,11 @@
 #define GAMEA_MAIN_H
 #include <windows.h>
 #include <stdint.h>
+#include <emmintrin.h>
 
 #define GAME_NAME "Game A"
 #define GAME_RES_WIDTH 384
-#define GAME_RES_HEIGHT 216
+#define GAME_RES_HEIGHT 240
 #define GAME_BPP 32
 #define GAME_DRAWING_AREA_MS (GAME_RES_WIDTH * GAME_RES_HEIGHT * (GAME_BPP / 8))
 #define CALCULATE_AVG_FPS_X_FRAMES 100
@@ -46,10 +47,22 @@ typedef struct PERFDATA {
     LONG currentTimerResolution;
 } PERFDATA;
 
+typedef struct PLAYER {
+    int32_t playerId;
+    char name[12];
+    int32_t posX;
+    int32_t posY;
+    int32_t hp;
+    int32_t maxHp;
+    int32_t strength;
+    int32_t defense;
+}PLAYER;
+
 LRESULT CALLBACK MainWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 DWORD CreateMainWindow(HINSTANCE Instance);
 BOOL GameHealthCheck(void);
 void PlayerInput(void);
 void Render(void);
 void PrintDebugInfo(HDC deviceContext);
+void ClearScreen(__m128i color);
 #endif //GAMEA_MAIN_H
