@@ -2,6 +2,7 @@
 #include "main.h"
 #include <emmintrin.h>
 #include <stdio.h>
+#include <psapi.h>
 //
 // Created by MJVA_ on 24/12/2025.
 //
@@ -37,6 +38,7 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
     }
 
     NtQueryTimerResolution(&gPerformanceData.minTimerResolution, &gPerformanceData.maxTimerResolution, &gPerformanceData.currentTimerResolution);
+    GetSystemInfo(&gPerformanceData.systemInfo);
 
     if (GameHealthCheck() == TRUE) {
         MessageBox(NULL, "Game is already running", "Error", MB_ICONEXCLAMATION | MB_OK);
@@ -87,13 +89,13 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
         gPerformanceData.totalFramesRendered ++;
         elapsedTimeAcc += elapsedTime;
 
-        while (elapsedTime <= TARGET_MICROSECONDS_PER_FRAME) {
+        while (elapsedTime < TARGET_MICROSECONDS_PER_FRAME) {
             elapsedTime = endTime - startTime;
             elapsedTime *= 1000000;
             elapsedTime /= frequency;
             QueryPerformanceCounter((LARGE_INTEGER*)&endTime);
 
-            if (elapsedTime <= (TARGET_MICROSECONDS_PER_FRAME - (gPerformanceData.currentTimerResolution))) {
+            if (elapsedTime < (TARGET_MICROSECONDS_PER_FRAME - ((uint64_t)gPerformanceData.currentTimerResolution * 0.1f * 16.5f))) {
                 Sleep(1);
             }
         }
@@ -101,12 +103,32 @@ int _stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLin
 
 
         if (gPerformanceData.totalFramesRendered % CALCULATE_AVG_FPS_X_FRAMES == 0) {
+            HANDLE currentProcess = GetCurrentProcess();
+
+            GetSystemTimeAsFileTime((FILETIME*)&gPerformanceData.cpuData.systemTime);
+            GetProcessTimes(
+                currentProcess,
+                &gPerformanceData.cpuData.creationTime, &gPerformanceData.cpuData.exitTime,
+                (FILETIME*)&gPerformanceData.cpuData.kernelTime, (FILETIME*)&gPerformanceData.cpuData.userTime
+                );
+            GetProcessHandleCount(currentProcess, &gPerformanceData.handleCount);
+            GetProcessMemoryInfo(currentProcess, (PROCESS_MEMORY_COUNTERS*)&gPerformanceData.memInfo, sizeof(gPerformanceData.memInfo));
+
+            gPerformanceData.cpuData.cpuUsage = (gPerformanceData.cpuData.kernelTime - gPerformanceData.cpuData.prevKernelTime) + (gPerformanceData.cpuData.userTime - gPerformanceData.cpuData.prevUserTime);
+            gPerformanceData.cpuData.cpuUsage /= (gPerformanceData.cpuData.systemTime - gPerformanceData.cpuData.prevSystemTime);
+            gPerformanceData.cpuData.cpuUsage /= gPerformanceData.systemInfo.dwNumberOfProcessors;
+            gPerformanceData.cpuData.cpuUsage *= 100;
+
             gPerformanceData.msFrame = (elapsedTimeAcc/CALCULATE_AVG_FPS_X_FRAMES) * 0.001f;
             gPerformanceData.maxFrame = 1.0f/((elapsedTimeAcc/CALCULATE_AVG_FPS_X_FRAMES) * 0.000001f);
             gPerformanceData.avgFrame = 1.0f/((targetTimeAcc/CALCULATE_AVG_FPS_X_FRAMES) * 0.000001f);
+            gPerformanceData.cpuData.prevKernelTime = gPerformanceData.cpuData.kernelTime;
+            gPerformanceData.cpuData.prevUserTime = gPerformanceData.cpuData.userTime;
+            gPerformanceData.cpuData.prevSystemTime = gPerformanceData.cpuData.systemTime;
 
             elapsedTimeAcc  = 0;
             targetTimeAcc = 0;
+
         }
     }
 
@@ -318,5 +340,15 @@ void PrintDebugInfo(HDC deviceContext) {
 
     sprintf_s(debugTextBuff, _countof(debugTextBuff), "Monitor Resolution:      %dx%d", gPerformanceData.monitorWidth, gPerformanceData.monitorHeight);
     TextOutA(deviceContext, 0,78, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Handles:                 %u", gPerformanceData.handleCount);
+    TextOutA(deviceContext, 0,91, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "Memory:                  %lluKB", gPerformanceData.memInfo.PrivateUsage / 1024);
+    TextOutA(deviceContext, 0,104, debugTextBuff, (int)strlen(debugTextBuff));
+
+    sprintf_s(debugTextBuff, _countof(debugTextBuff), "CPU Usage:               %.01f%%", gPerformanceData.cpuData.cpuUsage);
+    TextOutA(deviceContext, 0,117, debugTextBuff, (int)strlen(debugTextBuff));
 }
+
 

@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <stdint.h>
 #include <emmintrin.h>
+#include <psapi.h>
 
 #define GAME_NAME "Game A"
 #define GAME_RES_WIDTH 384
@@ -14,7 +15,7 @@
 #define GAME_BPP 32
 #define GAME_DRAWING_AREA_MS (GAME_RES_WIDTH * GAME_RES_HEIGHT * (GAME_BPP / 8))
 #define CALCULATE_AVG_FPS_X_FRAMES 100
-#define TARGET_MICROSECONDS_PER_FRAME 8333
+#define TARGET_MICROSECONDS_PER_FRAME 16667
 
 typedef LONG(NTAPI* _NtQueryTimerResolution) (OUT PULONG MinimunResolution, OUT PULONG MaximunResolution, OUT PULONG CurrentResolution);
 _NtQueryTimerResolution NtQueryTimerResolution;
@@ -31,6 +32,18 @@ typedef struct PIXEL32 {
     uint8_t alpha;
 } PIXEL32;
 
+typedef struct CPU_DATA{
+    double cpuUsage;
+    FILETIME creationTime;
+    FILETIME exitTime;
+    uint64_t kernelTime;
+    uint64_t userTime;
+    uint64_t systemTime;
+    uint64_t prevUserTime;
+    uint64_t prevKernelTime;
+    uint64_t prevSystemTime;
+}CPU_DATA;
+
 typedef struct PERFDATA {
     uint64_t totalFramesRendered;
     float avgFrame;
@@ -42,9 +55,13 @@ typedef struct PERFDATA {
     MONITORINFO monitorInfo;
     int32_t monitorWidth ;
     int32_t monitorHeight;
-    LONG minTimerResolution;
-    LONG maxTimerResolution;
-    LONG currentTimerResolution;
+    ULONG minTimerResolution;
+    ULONG maxTimerResolution;
+    ULONG currentTimerResolution;
+    DWORD handleCount;
+    PROCESS_MEMORY_COUNTERS_EX memInfo;
+    SYSTEM_INFO systemInfo;
+    CPU_DATA cpuData;
 } PERFDATA;
 
 typedef struct PLAYER {
